@@ -3,7 +3,9 @@ from tkinter import messagebox, ttk
 import hashlib
 import os
 import re
+import openpyxl
 import smtplib
+from reportlab.pdfgen import canvas
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -332,6 +334,89 @@ def abrir_ventana_estudiante():
     boton_cerrar_sesion = tk.Button(ventana_estudiante, text="Cerrar Sesión", command=lambda: cerrar_sesion(ventana_estudiante))
     boton_cerrar_sesion.pack(pady=20)
 
+# Función para manejar la inscripción de cursos
+def inscribirse_en_curso(curso):
+    usuario_actual = entry_usuario.get()  # Obtener el usuario actual que inició sesión
+    if not usuario_actual:
+        messagebox.showerror("Error", "No se pudo identificar al usuario actual")
+        return
+
+    # Guardar la inscripción del usuario en un archivo
+    with open(f"{usuario_actual}_inscripciones.txt", "a") as archivo:
+        archivo.write(f"{curso}\n")
+    
+    messagebox.showinfo("Inscripción", f"Te has inscrito en el curso: {curso}")
+
+# Función para cargar los cursos en los que el estudiante está inscrito
+def cargar_inscripciones_usuario(usuario):
+    cursos_inscritos = []
+    if os.path.exists(f"{usuario}_inscripciones.txt"):
+        with open(f"{usuario}_inscripciones.txt", "r") as archivo:
+            for linea in archivo:
+                cursos_inscritos.append(linea.strip())
+    return cursos_inscritos
+
+# Función para entrar al curso seleccionado
+def entrar_a_curso(curso):
+    ventana_curso = tk.Toplevel(ventana)
+    ventana_curso.title(f"Curso: {curso}")
+    ventana_curso.geometry("400x300")
+    
+    tk.Label(ventana_curso, text=f"Bienvenido al curso: {curso}", font=("Arial", 14)).pack(pady=20)
+    
+    # Aquí podrías agregar más lógica específica del curso, como material, fechas, etc.
+    tk.Button(ventana_curso, text="Cerrar", command=ventana_curso.destroy).pack(pady=10)
+
+# Función para abrir la ventana de estudiante
+def abrir_ventana_estudiante():
+    ventana_estudiante = tk.Toplevel(ventana)
+    ventana_estudiante.title("Panel de Estudiante")
+    
+    label_estudiante = tk.Label(ventana_estudiante, text="Cursos Disponibles", font=("Arial", 14))
+    label_estudiante.pack(pady=10)
+
+    cursos_disponibles = cargar_cursos()
+    
+    # Crear un marco para los cursos
+    frame_cursos = tk.Frame(ventana_estudiante)
+    frame_cursos.pack(pady=10)
+    
+    for curso in cursos_disponibles:
+        frame_curso = tk.Frame(frame_cursos)
+        frame_curso.pack(fill="x", pady=5)
+
+        # Etiqueta del curso
+        label_curso = tk.Label(frame_curso, text=curso, font=("Arial", 12))
+        label_curso.pack(side="left", padx=10)
+
+        # Botón para inscribirse en cada curso
+        boton_inscribirse = tk.Button(frame_curso, text="Inscribirse", command=lambda c=curso: inscribirse_en_curso(c))
+        boton_inscribirse.pack(side="right", padx=10)
+    
+    # Mostrar los cursos en los que está inscrito el estudiante
+    label_inscripciones = tk.Label(ventana_estudiante, text="Mis Cursos", font=("Arial", 14))
+    label_inscripciones.pack(pady=10)
+
+    cursos_inscritos = cargar_inscripciones_usuario(entry_usuario.get())
+    
+    frame_inscripciones = tk.Frame(ventana_estudiante)
+    frame_inscripciones.pack(pady=10)
+    
+    for curso in cursos_inscritos:
+        frame_curso_inscrito = tk.Frame(frame_inscripciones)
+        frame_curso_inscrito.pack(fill="x", pady=5)
+
+        # Etiqueta del curso inscrito
+        label_curso_inscrito = tk.Label(frame_curso_inscrito, text=curso, font=("Arial", 12))
+        label_curso_inscrito.pack(side="left", padx=10)
+
+        # Botón para entrar en el curso
+        boton_entrar = tk.Button(frame_curso_inscrito, text="Entrar al Curso", command=lambda c=curso: entrar_a_curso(c))
+        boton_entrar.pack(side="right", padx=10)
+    
+    # Botón para cerrar sesión
+    boton_cerrar_sesion = tk.Button(ventana_estudiante, text="Cerrar Sesión", command=lambda: cerrar_sesion(ventana_estudiante))
+    boton_cerrar_sesion.pack(pady=20)
 # Función para abrir el panel de administración
 def abrir_panel_administracion():
     ventana_admin = tk.Toplevel(ventana)
@@ -549,7 +634,27 @@ def cargar_estudiantes():
     return estudiantes
 # Función de ejemplo para descargar notas (deberás implementar la lógica de descarga)
 def descargar_notas():
-    messagebox.showinfo("Descargar Notas", "Aquí podrás descargar el registro de notas en .xlsx.")
+    # Cargar las notas desde el archivo
+    notas = cargar_notas()  # Asegúrate de que esta función esté definida y devuelva las notas
+
+    # Crear un nuevo libro de Excel
+    libro = openpyxl.Workbook()
+    hoja = libro.active
+    hoja.title = "Registro de Notas"
+
+    # Escribir los encabezados
+    encabezados = ["Estudiante", "Nota de Tarea", "Nota Parcial 1", "Nota Parcial 2", "Nota Parcial 3", "Nota Examen Final"]
+    hoja.append(encabezados)
+
+    # Escribir los datos de las notas
+    for fila in notas:
+        hoja.append(fila)
+
+    # Guardar el archivo
+    archivo_nombre = "registro_notas.xlsx"
+    libro.save(archivo_nombre)
+
+    messagebox.showinfo("Éxito", f"Notas descargadas exitosamente en '{archivo_nombre}'.")
 # Función para abrir la ventana de crear curso
 def abrir_ventana_crear_curso():
     global entry_nombre_curso, entry_costo_curso, entry_horario_curso, entry_codigo_curso, entry_cupo_curso, entry_catedratico_curso, ventana_crear_curso
@@ -651,6 +756,18 @@ if not os.path.exists("profesores.txt"):
     with open("profesores.txt", "w") as f:
         pass
 
+if not os.path.exists("cursos.txt"):
+    with open("cursos.txt", "w") as f:
+        pass
+    
+if not os.path.exists("notas.txt"):
+    with open("notas.txt", "w") as f:
+        pass
+    
+if not os.path.exists("inscripciones.txt"):
+    with open("inscripciones.txt", "w") as f:
+        pass
+        
 if not os.path.exists("cursos.txt"):
     with open("cursos.txt", "w") as f:
         pass
